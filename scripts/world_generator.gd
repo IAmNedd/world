@@ -2,12 +2,40 @@
 extends Node2D
 class_name WorldGenerator
 
+@export var auto_generate_on_ready: bool = true
+@export var debug_chunk_coord: Vector2i = Vector2i.ZERO
+@export var debug_draw_tile_size: float = 4.0
+
 var settings: WorldGenerationClasses.WorldGenerationSettings
 var faction_rules_by_id: Dictionary = {}
 
 var _height_noise: FastNoiseLite = FastNoiseLite.new()
 var _moisture_noise: FastNoiseLite = FastNoiseLite.new()
 var _temperature_noise: FastNoiseLite = FastNoiseLite.new()
+var _debug_chunk: WorldGenerationClasses.ChunkWorldLayerData
+
+
+func _ready() -> void:
+	if auto_generate_on_ready:
+		if settings == null:
+			setup(_create_default_settings())
+		_debug_chunk = generate_chunk(debug_chunk_coord)
+		queue_redraw()
+
+
+func _draw() -> void:
+	if _debug_chunk == null or settings == null:
+		return
+	for local_y: int in settings.chunk_size_tiles:
+		for local_x: int in settings.chunk_size_tiles:
+			var index: int = local_y * settings.chunk_size_tiles + local_x
+			var surface: int = int(_debug_chunk.surface_ids[index])
+			draw_rect(
+				Rect2(local_x * debug_draw_tile_size, local_y * debug_draw_tile_size, debug_draw_tile_size, debug_draw_tile_size),
+				_color_for_surface(surface),
+				true
+			)
+
 
 func setup(new_settings: WorldGenerationClasses.WorldGenerationSettings, faction_rules: Array[WorldGenerationClasses.FactionConstructionRules] = []) -> void:
 	settings = new_settings
@@ -17,6 +45,14 @@ func setup(new_settings: WorldGenerationClasses.WorldGenerationSettings, faction
 	_apply_noise_settings(_height_noise, settings.world_type.continent_scale, settings.seed)
 	_apply_noise_settings(_moisture_noise, settings.world_type.continent_scale * 1.8, settings.seed + 404)
 	_apply_noise_settings(_temperature_noise, settings.world_type.continent_scale * 1.2, settings.seed + 909)
+
+
+func regenerate_debug_chunk(chunk_coord: Vector2i = debug_chunk_coord) -> void:
+	if settings == null:
+		setup(_create_default_settings())
+	debug_chunk_coord = chunk_coord
+	_debug_chunk = generate_chunk(chunk_coord)
+	queue_redraw()
 
 
 func generate_chunk(chunk_coord: Vector2i) -> WorldGenerationClasses.ChunkWorldLayerData:
@@ -192,3 +228,39 @@ func _stable_hash(parts: Array) -> int:
 func _random01_from_hash(parts: Array) -> float:
 	var h: int = _stable_hash(parts)
 	return float(h % 100000) / 100000.0
+
+
+func _color_for_surface(surface: int) -> Color:
+	match surface:
+		0:
+			return Color(0.08, 0.20, 0.60)
+		1:
+			return Color(0.20, 0.40, 0.80)
+		2:
+			return Color(0.86, 0.80, 0.52)
+		3:
+			return Color(0.20, 0.66, 0.28)
+		4:
+			return Color(0.35, 0.42, 0.25)
+		5:
+			return Color(0.55, 0.55, 0.58)
+		_:
+			return Color(1.0, 0.0, 1.0)
+
+
+func _create_default_settings() -> WorldGenerationClasses.WorldGenerationSettings:
+	var world_type: WorldGenerationClasses.WorldTypeProfile = WorldGenerationClasses.WorldTypeProfile.new()
+	world_type.world_shape = WorldGenerationClasses.WorldTypeProfile.WorldShape.CONTINENTAL
+	world_type.continent_scale = 0.01
+
+	var default_biome: WorldGenerationClasses.TerrainBiome = WorldGenerationClasses.TerrainBiome.new()
+	default_biome.biome_id = 1
+	default_biome.base_height_min = 0.0
+	default_biome.base_height_max = 1.0
+
+	var generation_settings: WorldGenerationClasses.WorldGenerationSettings = WorldGenerationClasses.WorldGenerationSettings.new()
+	generation_settings.seed = 1337
+	generation_settings.chunk_size_tiles = 64
+	generation_settings.world_type = world_type
+	generation_settings.biome_table = [default_biome]
+	return generation_settings
