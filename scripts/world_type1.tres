@@ -1,6 +1,6 @@
-[gd_resource type="Resource" script_class="WorldTypeSettings" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="WorldGenerationClasses" load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://scripts/world_type_settings.gd" id="1_6x2fg"]
+[ext_resource type="Script" path="res://scripts/world_generation_classes.gd" id="1_6x2fg"]
 
 [resource]
 script = ExtResource("1_6x2fg")

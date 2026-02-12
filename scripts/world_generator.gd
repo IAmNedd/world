@@ -5,7 +5,7 @@ class_name WorldGenerator
 @export var auto_generate_on_ready: bool = true
 @export var debug_draw_tile_size: float = 4.0
 @export_file("*.tres") var world_type_settings_path: String = "res://scripts/world_type1.tres"
-@export var world_type_settings: WorldTypeSettings
+@export var world_type_settings: WorldGenerationClasses
 
 var settings: WorldGenerationClasses.WorldGenerationSettings
 var faction_rules_by_id: Dictionary = {}
@@ -271,14 +271,14 @@ func _color_for_surface(surface: int) -> Color:
 func _load_or_create_world_settings() -> WorldGenerationClasses.WorldGenerationSettings:
 	if world_type_settings == null and not world_type_settings_path.is_empty():
 		var loaded: Resource = load(world_type_settings_path)
-		if loaded is WorldTypeSettings:
+		if loaded is WorldGenerationClasses:
 			world_type_settings = loaded
 	if world_type_settings == null:
-		world_type_settings = WorldTypeSettings.new()
+		world_type_settings = WorldGenerationClasses.new()
 	return _build_settings_from_world_type(world_type_settings)
 
 
-func _build_settings_from_world_type(config: WorldTypeSettings) -> WorldGenerationClasses.WorldGenerationSettings:
+func _build_settings_from_world_type(config: WorldGenerationClasses) -> WorldGenerationClasses.WorldGenerationSettings:
 	var world_type: WorldGenerationClasses.WorldTypeProfile = WorldGenerationClasses.WorldTypeProfile.new()
 	world_type.world_shape = config.world_shape
 	world_type.continent_scale = config.continent_scale
@@ -297,24 +297,24 @@ func _build_settings_from_world_type(config: WorldTypeSettings) -> WorldGenerati
 	return generation_settings
 
 
-func _create_biome_from_preset(preset: WorldTypeSettings.LandPreset) -> WorldGenerationClasses.TerrainBiome:
+func _create_biome_from_preset(preset: WorldGenerationClasses.LandPreset) -> WorldGenerationClasses.TerrainBiome:
 	var biome: WorldGenerationClasses.TerrainBiome = WorldGenerationClasses.TerrainBiome.new()
 	biome.biome_id = 1
 	biome.base_height_min = 0.0
 	biome.base_height_max = 1.0
 
 	match preset:
-		WorldTypeSettings.LandPreset.ISLANDS:
+		WorldGenerationClasses.LandPreset.ISLANDS:
 			biome.waterline = 0.42
 			biome.beach_line = 0.52
 			biome.hill_line = 0.72
 			biome.mountain_line = 0.88
-		WorldTypeSettings.LandPreset.MOUNTAINS:
+		WorldGenerationClasses.LandPreset.MOUNTAINS:
 			biome.waterline = 0.22
 			biome.beach_line = 0.30
 			biome.hill_line = 0.52
 			biome.mountain_line = 0.66
-		WorldTypeSettings.LandPreset.DESERT:
+		WorldGenerationClasses.LandPreset.DESERT:
 			biome.waterline = 0.15
 			biome.beach_line = 0.75
 			biome.hill_line = 0.90
