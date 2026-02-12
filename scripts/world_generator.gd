@@ -1,5 +1,5 @@
 # Deterministic chunk generator that uses the world-generation data contracts.
-extends RefCounted
+extends Node2D
 class_name WorldGenerator
 
 var settings: WorldGenerationClasses.WorldGenerationSettings
@@ -161,7 +161,7 @@ func _generate_road_overlay(chunk: WorldGenerationClasses.ChunkWorldLayerData) -
 		for local_x: int in settings.chunk_size_tiles:
 			var world_x: int = chunk.chunk_coord.x * settings.chunk_size_tiles + local_x
 			var world_z: int = chunk.chunk_coord.y * settings.chunk_size_tiles + local_y
-			var road_noise: float = _random01_from_hash([settings.seed, world_x / 8, world_z / 8, 4545])
+			var road_noise: float = _random01_from_hash([settings.seed, world_x / 8.0, world_z / 8.0, 4545])
 			if road_noise < (0.004 * settings.world_type.road_density_bias):
 				var road: WorldGenerationClasses.ConstructionRecord = WorldGenerationClasses.ConstructionRecord.new()
 				road.construction_id = _stable_hash([settings.seed, world_x, world_z, 777])
