@@ -1,7 +1,7 @@
 # Deterministic chunk generator that uses the world-generation data contracts.
 extends RefCounted
 
-const WorldData = preload("res://scripts/world_generation_classes.gd")
+const WorldData = WorldGenerationClasses
 
 var settings: WorldData.WorldGenerationSettings
 var faction_rules_by_id: Dictionary = {}
@@ -22,7 +22,7 @@ func setup(new_settings: WorldData.WorldGenerationSettings, faction_rules: Array
 
 func generate_chunk(chunk_coord: Vector2i) -> WorldData.ChunkWorldLayerData:
 	assert(settings != null, "WorldGenerator.setup must be called before generate_chunk.")
-	var chunk := WorldData.ChunkWorldLayerData.new()
+	var chunk: WorldData.ChunkWorldLayerData = WorldData.ChunkWorldLayerData.new()
 	chunk.chunk_coord = chunk_coord
 	var tile_count := settings.chunk_size_tiles * settings.chunk_size_tiles
 	chunk.surface_ids.resize(tile_count)
@@ -62,7 +62,7 @@ func try_place_construction(chunk: WorldData.ChunkWorldLayerData, owner_faction_
 	if not rules.build_permissions.can_place_definition(definition.definition_id):
 		return false
 
-	var record := WorldData.ConstructionRecord.new()
+	var record: WorldData.ConstructionRecord = WorldData.ConstructionRecord.new()
 	record.construction_id = _stable_hash([settings.seed, owner_faction_id, int(world_position.x), int(world_position.z), chunk.construction_feature_records.size()])
 	record.definition_id = definition.definition_id
 	record.owner_faction_id = owner_faction_id
@@ -104,19 +104,19 @@ func _pick_biome(height: float, moisture: float, temperature: float) -> WorldDat
 		return WorldData.TerrainBiome.new()
 
 	var best_biome: WorldData.TerrainBiome = settings.biome_table[0]
-	var best_score := INF
+	var best_score: float = INF
 	for biome in settings.biome_table:
 		var mid_height := (biome.base_height_min + biome.base_height_max) * 0.5
 		var height_score := abs(height - mid_height)
-		var moisture_target := 0.5
+		var moisture_target: float = 0.5
 		if biome.moisture_noise != null:
 			moisture_target = clampf(biome.moisture_noise.frequency * 200.0, 0.0, 1.0)
-		var temperature_target := 0.5
+		var temperature_target: float = 0.5
 		if biome.temperature_noise != null:
 			temperature_target = clampf(biome.temperature_noise.frequency * 200.0, 0.0, 1.0)
-		var moisture_score := abs(moisture - moisture_target)
-		var temp_score := abs(temperature - temperature_target)
-		var score := height_score + moisture_score + temp_score
+		var moisture_score: float = abs(moisture - moisture_target)
+		var temp_score: float = abs(temperature - temperature_target)
+		var score: float = height_score + moisture_score + temp_score
 		if score < best_score:
 			best_score = score
 			best_biome = biome
@@ -147,7 +147,7 @@ func _generate_natural_features(chunk: WorldData.ChunkWorldLayerData) -> void:
 			var feature_roll := _random01_from_hash([settings.seed, chunk.chunk_coord.x, chunk.chunk_coord.y, world_x, world_z, 9001])
 			if feature_roll > 0.03 * settings.world_type.forest_density_bias:
 				continue
-			var record := WorldData.FeaturePlacementRecord.new()
+			var record: WorldData.FeaturePlacementRecord = WorldData.FeaturePlacementRecord.new()
 			record.instance_id = _stable_hash([settings.seed, world_x, world_z, 33])
 			record.prototype_id = &"tree"
 			record.world_position = Vector3(world_x * settings.tile_size_world_units, 0.0, world_z * settings.tile_size_world_units)
@@ -164,7 +164,7 @@ func _generate_road_overlay(chunk: WorldData.ChunkWorldLayerData) -> void:
 			var world_z := chunk.chunk_coord.y * settings.chunk_size_tiles + local_y
 			var road_noise := _random01_from_hash([settings.seed, world_x / 8, world_z / 8, 4545])
 			if road_noise < (0.004 * settings.world_type.road_density_bias):
-				var road := WorldData.ConstructionRecord.new()
+				var road: WorldData.ConstructionRecord = WorldData.ConstructionRecord.new()
 				road.construction_id = _stable_hash([settings.seed, world_x, world_z, 777])
 				road.definition_id = &"world_road"
 				road.owner_faction_id = -1

@@ -2,6 +2,7 @@
 # These classes are intentionally data-driven so generation, AI, and player systems can
 # share one deterministic pipeline.
 extends RefCounted
+class_name WorldGenerationClasses
 
 
 class TerrainNoiseSettings:
