@@ -3,8 +3,9 @@ extends Node2D
 class_name WorldGenerator
 
 @export var auto_generate_on_ready: bool = true
-@export var debug_chunk_coord: Vector2i = Vector2i.ZERO
 @export var debug_draw_tile_size: float = 4.0
+@export_file("*.tres") var world_type_settings_path: String = "res://scripts/world_type1.tres"
+@export var world_type_settings: WorldTypeSettings
 
 var settings: WorldGenerationClasses.WorldGenerationSettings
 var faction_rules_by_id: Dictionary = {}
@@ -12,29 +13,41 @@ var faction_rules_by_id: Dictionary = {}
 var _height_noise: FastNoiseLite = FastNoiseLite.new()
 var _moisture_noise: FastNoiseLite = FastNoiseLite.new()
 var _temperature_noise: FastNoiseLite = FastNoiseLite.new()
-var _debug_chunk: WorldGenerationClasses.ChunkWorldLayerData
+var _debug_chunks: Dictionary = {}
 
 
 func _ready() -> void:
 	if auto_generate_on_ready:
 		if settings == null:
-			setup(_create_default_settings())
-		_debug_chunk = generate_chunk(debug_chunk_coord)
+			setup(_load_or_create_world_settings())
+		_generate_debug_world()
 		queue_redraw()
 
 
 func _draw() -> void:
-	if _debug_chunk == null or settings == null:
+	if settings == null or _debug_chunks.is_empty():
 		return
-	for local_y: int in settings.chunk_size_tiles:
-		for local_x: int in settings.chunk_size_tiles:
-			var index: int = local_y * settings.chunk_size_tiles + local_x
-			var surface: int = int(_debug_chunk.surface_ids[index])
-			draw_rect(
-				Rect2(local_x * debug_draw_tile_size, local_y * debug_draw_tile_size, debug_draw_tile_size, debug_draw_tile_size),
-				_color_for_surface(surface),
-				true
-			)
+	for chunk_coord_variant in _debug_chunks.keys():
+		var chunk_coord: Vector2i = chunk_coord_variant
+		var chunk: WorldGenerationClasses.ChunkWorldLayerData = _debug_chunks[chunk_coord]
+		var chunk_offset: Vector2 = Vector2(
+			chunk_coord.x * settings.chunk_size_tiles * debug_draw_tile_size,
+			chunk_coord.y * settings.chunk_size_tiles * debug_draw_tile_size
+		)
+		for local_y: int in settings.chunk_size_tiles:
+			for local_x: int in settings.chunk_size_tiles:
+				var index: int = local_y * settings.chunk_size_tiles + local_x
+				var surface: int = int(chunk.surface_ids[index])
+				draw_rect(
+					Rect2(
+						chunk_offset.x + local_x * debug_draw_tile_size,
+						chunk_offset.y + local_y * debug_draw_tile_size,
+						debug_draw_tile_size,
+						debug_draw_tile_size
+					),
+					_color_for_surface(surface),
+					true
+				)
 
 
 func setup(new_settings: WorldGenerationClasses.WorldGenerationSettings, faction_rules: Array[WorldGenerationClasses.FactionConstructionRules] = []) -> void:
@@ -47,12 +60,19 @@ func setup(new_settings: WorldGenerationClasses.WorldGenerationSettings, faction
 	_apply_noise_settings(_temperature_noise, settings.world_type.continent_scale * 1.2, settings.seed + 909)
 
 
-func regenerate_debug_chunk(chunk_coord: Vector2i = debug_chunk_coord) -> void:
+func regenerate_debug_world() -> void:
 	if settings == null:
-		setup(_create_default_settings())
-	debug_chunk_coord = chunk_coord
-	_debug_chunk = generate_chunk(chunk_coord)
+		setup(_load_or_create_world_settings())
+	_generate_debug_world()
 	queue_redraw()
+
+
+func _generate_debug_world() -> void:
+	_debug_chunks.clear()
+	for chunk_y: int in settings.world_height_chunks:
+		for chunk_x: int in settings.world_width_chunks:
+			var chunk_coord: Vector2i = Vector2i(chunk_x, chunk_y)
+			_debug_chunks[chunk_coord] = generate_chunk(chunk_coord)
 
 
 func generate_chunk(chunk_coord: Vector2i) -> WorldGenerationClasses.ChunkWorldLayerData:
@@ -248,19 +268,63 @@ func _color_for_surface(surface: int) -> Color:
 			return Color(1.0, 0.0, 1.0)
 
 
-func _create_default_settings() -> WorldGenerationClasses.WorldGenerationSettings:
-	var world_type: WorldGenerationClasses.WorldTypeProfile = WorldGenerationClasses.WorldTypeProfile.new()
-	world_type.world_shape = WorldGenerationClasses.WorldTypeProfile.WorldShape.CONTINENTAL
-	world_type.continent_scale = 0.01
+func _load_or_create_world_settings() -> WorldGenerationClasses.WorldGenerationSettings:
+	if world_type_settings == null and not world_type_settings_path.is_empty():
+		var loaded: Resource = load(world_type_settings_path)
+		if loaded is WorldTypeSettings:
+			world_type_settings = loaded
+	if world_type_settings == null:
+		world_type_settings = WorldTypeSettings.new()
+	return _build_settings_from_world_type(world_type_settings)
 
-	var default_biome: WorldGenerationClasses.TerrainBiome = WorldGenerationClasses.TerrainBiome.new()
-	default_biome.biome_id = 1
-	default_biome.base_height_min = 0.0
-	default_biome.base_height_max = 1.0
+
+func _build_settings_from_world_type(config: WorldTypeSettings) -> WorldGenerationClasses.WorldGenerationSettings:
+	var world_type: WorldGenerationClasses.WorldTypeProfile = WorldGenerationClasses.WorldTypeProfile.new()
+	world_type.world_shape = config.world_shape
+	world_type.continent_scale = config.continent_scale
+	world_type.road_density_bias = config.road_density_bias
+	world_type.forest_density_bias = config.forest_density_bias
+
+	var default_biome: WorldGenerationClasses.TerrainBiome = _create_biome_from_preset(config.land_preset)
 
 	var generation_settings: WorldGenerationClasses.WorldGenerationSettings = WorldGenerationClasses.WorldGenerationSettings.new()
-	generation_settings.seed = 1337
-	generation_settings.chunk_size_tiles = 64
+	generation_settings.seed = config.seed
+	generation_settings.chunk_size_tiles = config.chunk_size_tiles
+	generation_settings.world_width_chunks = config.world_width_chunks
+	generation_settings.world_height_chunks = config.world_height_chunks
 	generation_settings.world_type = world_type
 	generation_settings.biome_table = [default_biome]
 	return generation_settings
+
+
+func _create_biome_from_preset(preset: WorldTypeSettings.LandPreset) -> WorldGenerationClasses.TerrainBiome:
+	var biome: WorldGenerationClasses.TerrainBiome = WorldGenerationClasses.TerrainBiome.new()
+	biome.biome_id = 1
+	biome.base_height_min = 0.0
+	biome.base_height_max = 1.0
+
+	match preset:
+		WorldTypeSettings.LandPreset.ISLANDS:
+			biome.waterline = 0.42
+			biome.beach_line = 0.52
+			biome.hill_line = 0.72
+			biome.mountain_line = 0.88
+		WorldTypeSettings.LandPreset.MOUNTAINS:
+			biome.waterline = 0.22
+			biome.beach_line = 0.30
+			biome.hill_line = 0.52
+			biome.mountain_line = 0.66
+		WorldTypeSettings.LandPreset.DESERT:
+			biome.waterline = 0.15
+			biome.beach_line = 0.75
+			biome.hill_line = 0.90
+			biome.mountain_line = 0.96
+			biome.tile_surface_ids["grass"] = 2
+			biome.tile_surface_ids["hill"] = 4
+		_:
+			biome.waterline = 0.30
+			biome.beach_line = 0.35
+			biome.hill_line = 0.60
+			biome.mountain_line = 0.80
+
+	return biome
