@@ -4,6 +4,8 @@ class_name WorldGenerator
 
 @export var auto_generate_on_ready: bool = true
 @export var debug_draw_tile_size: float = 4.0
+@export var center_world_on_node: bool = true
+@export var generate_around_origin: bool = true
 @export_file("*.tres") var world_type_settings_path: String = "res://scripts/world_type1.tres"
 @export var world_type_settings: WorldGenerationClasses
 
@@ -27,12 +29,24 @@ func _ready() -> void:
 func _draw() -> void:
 	if settings == null or _debug_chunks.is_empty():
 		return
+
+	var min_chunk: Vector2i = _find_min_chunk_coord()
+	var chunk_world_pixels: float = settings.chunk_size_tiles * debug_draw_tile_size
+	var total_world_size: Vector2 = Vector2(
+		settings.world_width_chunks * chunk_world_pixels,
+		settings.world_height_chunks * chunk_world_pixels
+	)
+	var draw_origin: Vector2 = Vector2.ZERO
+	if center_world_on_node:
+		draw_origin = -total_world_size * 0.5
+
 	for chunk_coord_variant in _debug_chunks.keys():
 		var chunk_coord: Vector2i = chunk_coord_variant
 		var chunk: WorldGenerationClasses.ChunkWorldLayerData = _debug_chunks[chunk_coord]
-		var chunk_offset: Vector2 = Vector2(
-			chunk_coord.x * settings.chunk_size_tiles * debug_draw_tile_size,
-			chunk_coord.y * settings.chunk_size_tiles * debug_draw_tile_size
+		var local_chunk_coord: Vector2i = chunk_coord - min_chunk
+		var chunk_offset: Vector2 = draw_origin + Vector2(
+			local_chunk_coord.x * chunk_world_pixels,
+			local_chunk_coord.y * chunk_world_pixels
 		)
 		for local_y: int in settings.chunk_size_tiles:
 			for local_x: int in settings.chunk_size_tiles:
@@ -69,10 +83,29 @@ func regenerate_debug_world() -> void:
 
 func _generate_debug_world() -> void:
 	_debug_chunks.clear()
+	var start_x: int = 0
+	var start_y: int = 0
+	if generate_around_origin:
+		start_x = -int(floor(settings.world_width_chunks * 0.5))
+		start_y = -int(floor(settings.world_height_chunks * 0.5))
 	for chunk_y: int in settings.world_height_chunks:
 		for chunk_x: int in settings.world_width_chunks:
-			var chunk_coord: Vector2i = Vector2i(chunk_x, chunk_y)
+			var chunk_coord: Vector2i = Vector2i(start_x + chunk_x, start_y + chunk_y)
 			_debug_chunks[chunk_coord] = generate_chunk(chunk_coord)
+
+
+func _find_min_chunk_coord() -> Vector2i:
+	var first: bool = true
+	var min_coord: Vector2i = Vector2i.ZERO
+	for chunk_coord_variant in _debug_chunks.keys():
+		var chunk_coord: Vector2i = chunk_coord_variant
+		if first:
+			min_coord = chunk_coord
+			first = false
+		else:
+			min_coord.x = mini(min_coord.x, chunk_coord.x)
+			min_coord.y = mini(min_coord.y, chunk_coord.y)
+	return min_coord
 
 
 func generate_chunk(chunk_coord: Vector2i) -> WorldGenerationClasses.ChunkWorldLayerData:
