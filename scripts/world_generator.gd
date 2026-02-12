@@ -1,7 +1,7 @@
 # Deterministic chunk generator that uses the world-generation data contracts.
 extends RefCounted
 
-const WorldData = WorldGenerationClasses
+const WorldData = preload("res://scripts/world_generation_classes.gd")
 
 var settings: WorldData.WorldGenerationSettings
 var faction_rules_by_id: Dictionary = {}
@@ -106,8 +106,8 @@ func _pick_biome(height: float, moisture: float, temperature: float) -> WorldDat
 	var best_biome: WorldData.TerrainBiome = settings.biome_table[0]
 	var best_score: float = INF
 	for biome in settings.biome_table:
-		var mid_height := (biome.base_height_min + biome.base_height_max) * 0.5
-		var height_score := abs(height - mid_height)
+		var mid_height: float = (biome.base_height_min + biome.base_height_max) * 0.5
+		var height_score: float = abs(height - mid_height)
 		var moisture_target: float = 0.5
 		if biome.moisture_noise != null:
 			moisture_target = clampf(biome.moisture_noise.frequency * 200.0, 0.0, 1.0)
