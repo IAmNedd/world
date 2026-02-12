@@ -20,6 +20,10 @@ enum LandPreset {
 @export var road_density_bias: float = 1.0
 @export var forest_density_bias: float = 1.0
 @export var land_preset: LandPreset = LandPreset.PLAINS
+@export var natural_spawn_feature_ids: PackedStringArray = PackedStringArray(["tree"])
+@export var natural_spawn_base_chance: float = 0.03
+@export var road_spawn_feature_ids: PackedStringArray = PackedStringArray()
+@export var road_side_spawn_chance: float = 0.01
 
 
 class TerrainNoiseSettings:

@@ -305,6 +305,10 @@ func _resolve_surface_id(biome: WorldGenerationClasses.TerrainBiome, normalized_
 
 
 func _generate_natural_features(chunk: WorldGenerationClasses.ChunkWorldLayerData) -> void:
+	var spawn_ids: PackedStringArray = world_type_settings.natural_spawn_feature_ids
+	var base_chance: float = clampf(world_type_settings.natural_spawn_base_chance, 0.0, 1.0)
+	if spawn_ids.is_empty():
+		spawn_ids = PackedStringArray(["tree"])
 	for local_y: int in settings.chunk_size_tiles:
 		for local_x: int in settings.chunk_size_tiles:
 			var index: int = local_y * settings.chunk_size_tiles + local_x
@@ -314,11 +318,12 @@ func _generate_natural_features(chunk: WorldGenerationClasses.ChunkWorldLayerDat
 			var world_x: int = chunk.chunk_coord.x * settings.chunk_size_tiles + local_x
 			var world_z: int = chunk.chunk_coord.y * settings.chunk_size_tiles + local_y
 			var feature_roll: float = _random01_from_hash([settings.seed, chunk.chunk_coord.x, chunk.chunk_coord.y, world_x, world_z, 9001])
-			if feature_roll > 0.03 * settings.world_type.forest_density_bias:
+			if feature_roll > base_chance * settings.world_type.forest_density_bias:
 				continue
+			var feature_id: StringName = _pick_spawn_feature_id(spawn_ids, [settings.seed, world_x, world_z, 9901], &"tree")
 			var record: WorldGenerationClasses.FeaturePlacementRecord = WorldGenerationClasses.FeaturePlacementRecord.new()
 			record.instance_id = _stable_hash([settings.seed, world_x, world_z, 33])
-			record.prototype_id = _resolve_feature_prototype_id(&"tree")
+			record.prototype_id = _resolve_feature_prototype_id(feature_id)
 			record.world_position = Vector3(world_x * settings.tile_size_world_units, 0.0, world_z * settings.tile_size_world_units)
 			record.yaw_radians = TAU * _random01_from_hash([record.instance_id, 7])
 			record.uniform_scale = 0.8 + _random01_from_hash([record.instance_id, 8]) * 0.4
@@ -327,6 +332,8 @@ func _generate_natural_features(chunk: WorldGenerationClasses.ChunkWorldLayerDat
 
 
 func _generate_road_overlay(chunk: WorldGenerationClasses.ChunkWorldLayerData) -> void:
+	var road_feature_ids: PackedStringArray = world_type_settings.road_spawn_feature_ids
+	var road_side_spawn_chance: float = clampf(world_type_settings.road_side_spawn_chance, 0.0, 1.0)
 	for local_y: int in settings.chunk_size_tiles:
 		for local_x: int in settings.chunk_size_tiles:
 			var world_x: int = chunk.chunk_coord.x * settings.chunk_size_tiles + local_x
@@ -341,6 +348,19 @@ func _generate_road_overlay(chunk: WorldGenerationClasses.ChunkWorldLayerData) -
 				road.current_health = 999999.0
 				road.is_road_piece = true
 				chunk.construction_feature_records.append(road)
+
+				if not road_feature_ids.is_empty():
+					var side_roll: float = _random01_from_hash([settings.seed, world_x, world_z, 5151])
+					if side_roll <= road_side_spawn_chance:
+						var roadside: WorldGenerationClasses.FeaturePlacementRecord = WorldGenerationClasses.FeaturePlacementRecord.new()
+						roadside.instance_id = _stable_hash([settings.seed, world_x, world_z, 9123])
+						var road_feature_id: StringName = _pick_spawn_feature_id(road_feature_ids, [settings.seed, world_x, world_z, 5222], &"tree")
+						roadside.prototype_id = _resolve_feature_prototype_id(road_feature_id)
+						roadside.world_position = Vector3(world_x * settings.tile_size_world_units, 0.0, world_z * settings.tile_size_world_units)
+						roadside.yaw_radians = TAU * _random01_from_hash([roadside.instance_id, 9])
+						roadside.uniform_scale = 0.8 + _random01_from_hash([roadside.instance_id, 10]) * 0.4
+						roadside.lod_level = 0
+						chunk.natural_feature_records.append(roadside)
 
 
 func _apply_noise_settings(noise: FastNoiseLite, frequency: float, seed_value: int) -> void:
@@ -371,6 +391,15 @@ func _resolve_feature_prototype_id(default_id: StringName) -> StringName:
 		return default_id
 	var first_key: Variant = _feature_variants_by_id.keys()[0]
 	return StringName(String(first_key))
+
+
+func _pick_spawn_feature_id(feature_ids: PackedStringArray, hash_parts: Array, fallback_id: StringName) -> StringName:
+	if feature_ids.is_empty():
+		return fallback_id
+	var index: int = _stable_hash(hash_parts) % feature_ids.size()
+	if index < 0 or index >= feature_ids.size():
+		return fallback_id
+	return StringName(feature_ids[index])
 
 
 func _color_for_surface(surface: int) -> Color:
