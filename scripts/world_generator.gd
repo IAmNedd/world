@@ -8,6 +8,8 @@ class_name WorldGenerator
 @export var generate_around_origin: bool = true
 @export_file("*.tres") var world_type_settings_path: String = "res://scripts/world_type1.tres"
 @export var world_type_settings: WorldGenerationClasses
+@export_dir var feature_meshes_root_dir: String = "res://assets/features"
+@export var scan_feature_folders_on_ready: bool = true
 
 var settings: WorldGenerationClasses.WorldGenerationSettings
 var faction_rules_by_id: Dictionary = {}
@@ -16,9 +18,12 @@ var _height_noise: FastNoiseLite = FastNoiseLite.new()
 var _moisture_noise: FastNoiseLite = FastNoiseLite.new()
 var _temperature_noise: FastNoiseLite = FastNoiseLite.new()
 var _debug_chunks: Dictionary = {}
+var _feature_variants_by_id: Dictionary = {}
 
 
 func _ready() -> void:
+	if scan_feature_folders_on_ready:
+		_scan_feature_folders()
 	if auto_generate_on_ready:
 		if settings == null:
 			setup(_load_or_create_world_settings())
@@ -79,6 +84,82 @@ func regenerate_debug_world() -> void:
 		setup(_load_or_create_world_settings())
 	_generate_debug_world()
 	queue_redraw()
+
+
+func get_feature_variants() -> Dictionary:
+	return _feature_variants_by_id.duplicate(true)
+
+
+func _scan_feature_folders() -> void:
+	_feature_variants_by_id.clear()
+	if feature_meshes_root_dir.is_empty():
+		push_warning("WorldGenerator: feature mesh root folder not set.")
+		return
+
+	var root: DirAccess = DirAccess.open(feature_meshes_root_dir)
+	if root == null:
+		push_warning("WorldGenerator: failed to open feature mesh root folder: %s" % feature_meshes_root_dir)
+		return
+
+	root.list_dir_begin()
+	while true:
+		var entry: String = root.get_next()
+		if entry.is_empty():
+			break
+		if entry.begins_with("."):
+			continue
+		if not root.current_is_dir():
+			continue
+		if entry.ends_with("_bb"):
+			continue
+
+		var feature_id: StringName = StringName(entry)
+		var mesh_dir: String = "%s/%s" % [feature_meshes_root_dir, entry]
+		var billboard_dir: String = "%s/%s_bb" % [feature_meshes_root_dir, entry]
+
+		var mesh_files: PackedStringArray = _list_scene_like_files(mesh_dir)
+		var billboard_files: PackedStringArray = _list_scene_like_files(billboard_dir)
+
+		_feature_variants_by_id[feature_id] = {
+			"mesh": mesh_files,
+			"billboard": billboard_files,
+		}
+	root.list_dir_end()
+
+
+func _list_scene_like_files(dir_path: String) -> PackedStringArray:
+	var out: PackedStringArray = PackedStringArray()
+	var dir: DirAccess = DirAccess.open(dir_path)
+	if dir == null:
+		return out
+
+	dir.list_dir_begin()
+	while true:
+		var entry: String = dir.get_next()
+		if entry.is_empty():
+			break
+		if entry.begins_with("."):
+			continue
+		if dir.current_is_dir():
+			continue
+		var lowered: String = entry.to_lower()
+		if lowered.ends_with(".tscn") or lowered.ends_with(".scn") or lowered.ends_with(".glb") or lowered.ends_with(".gltf") or lowered.ends_with(".mesh"):
+			out.append("%s/%s" % [dir_path, entry])
+	dir.list_dir_end()
+	return out
+
+
+func pick_feature_asset(feature_id: StringName, use_billboard: bool = false) -> String:
+	if not _feature_variants_by_id.has(feature_id):
+		return ""
+	var variants: Dictionary = _feature_variants_by_id[feature_id]
+	var key: String = "billboard" if use_billboard else "mesh"
+	var paths: PackedStringArray = variants.get(key, PackedStringArray())
+	if paths.is_empty() and use_billboard:
+		paths = variants.get("mesh", PackedStringArray())
+	if paths.is_empty():
+		return ""
+	return paths[0]
 
 
 func _generate_debug_world() -> void:
@@ -237,7 +318,7 @@ func _generate_natural_features(chunk: WorldGenerationClasses.ChunkWorldLayerDat
 				continue
 			var record: WorldGenerationClasses.FeaturePlacementRecord = WorldGenerationClasses.FeaturePlacementRecord.new()
 			record.instance_id = _stable_hash([settings.seed, world_x, world_z, 33])
-			record.prototype_id = &"tree"
+			record.prototype_id = _resolve_feature_prototype_id(&"tree")
 			record.world_position = Vector3(world_x * settings.tile_size_world_units, 0.0, world_z * settings.tile_size_world_units)
 			record.yaw_radians = TAU * _random01_from_hash([record.instance_id, 7])
 			record.uniform_scale = 0.8 + _random01_from_hash([record.instance_id, 8]) * 0.4
@@ -281,6 +362,15 @@ func _stable_hash(parts: Array) -> int:
 func _random01_from_hash(parts: Array) -> float:
 	var h: int = _stable_hash(parts)
 	return float(h % 100000) / 100000.0
+
+
+func _resolve_feature_prototype_id(default_id: StringName) -> StringName:
+	if _feature_variants_by_id.has(default_id):
+		return default_id
+	if _feature_variants_by_id.is_empty():
+		return default_id
+	var first_key: Variant = _feature_variants_by_id.keys()[0]
+	return StringName(String(first_key))
 
 
 func _color_for_surface(surface: int) -> Color:
